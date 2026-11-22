@@ -1,0 +1,75 @@
+{
+  "manifestVersion": 2,
+  "id": "prompt-vault",
+  "name": {
+    "en": "Prompt Vault",
+    "zh-CN": "本地提示词库"
+  },
+  "version": "1.0.0",
+  "description": {
+    "en": "Local Markdown prompt library backed by the shared Host process. Search, edit, tag, and copy real .md files from Desktop or Web.",
+    "zh-CN": "基于共享 Host 后台的本机 Markdown 提示词库：直接读写本地 .md 文件，在 Desktop 与 Web 端统一检索、编辑、按标签筛选与一键复制。"
+  },
+  "details": {
+    "en": "### Features\n\n- **Real local Markdown files**: Stores each prompt as a portable `.md` file with YAML frontmatter (`title`, `tags`, `updatedAt`).\n- **Shared Host Backend**: Runs a single Node.js backend process inside the shared Host, serving both Desktop and Web views.\n- **Custom Vault Directory**: Defaults to `<dataDir>/prompts`, or point it to any local Obsidian/Git folder in Settings.\n- **Safe Slug & Atomic Writes**: Rejects path traversal and writes files atomically.",
+    "zh-CN": "### 功能特性\n\n- **真实本机 Markdown 存储**：每条提示词保存为带 YAML frontmatter（`title`、`tags`、`updatedAt`）的标准 `.md` 文件。\n- **共享 Host 后台**：由共享 Host 单例托管 Node.js 后端进程，Desktop 与 Web 多标签页共用同一实例。\n- **自定义目录**：默认保存在 `<dataDir>/prompts`，也可在设置中指定本机 Obsidian 或 Git 仓库目录。\n- **安全校验与原子写入**：严格校验 slug 防止路径穿越，通过临时文件原子替换落盘。"
+  },
+  "author": "codexhost",
+  "categories": [
+    "tools",
+    "workflow"
+  ],
+  "settingsSchema": [
+    {
+      "key": "vaultDir",
+      "type": "string",
+      "label": {
+        "en": "Vault Directory",
+        "zh-CN": "提示词目录"
+      },
+      "description": {
+        "en": "Optional absolute path to a local folder of Markdown files (e.g. an Obsidian or Git folder). Leave empty to use the plugin default directory.",
+        "zh-CN": "可选的本机绝对目录路径（例如 Obsidian 或 Git 仓库目录）。留空则使用插件默认数据目录。"
+      },
+      "placeholder": {
+        "en": "/path/to/my-prompts",
+        "zh-CN": "/Users/you/prompts"
+      },
+      "default": ""
+    },
+    {
+      "key": "defaultTag",
+      "type": "string",
+      "label": {
+        "en": "Default Tag",
+        "zh-CN": "默认标签"
+      },
+      "description": {
+        "en": "Tag pre-filled when creating a new prompt.",
+        "zh-CN": "新建提示词时自动填充的默认标签。"
+      },
+      "placeholder": {
+        "en": "general",
+        "zh-CN": "general"
+      },
+      "default": "general"
+    }
+  ],
+  "page": {
+    "apiVersion": 1,
+    "entry": "page/index.mjs",
+    "style": "page/style.css",
+    "title": {
+      "en": "Prompt Vault",
+      "zh-CN": "本地提示词库"
+    }
+  },
+  "backend": {
+    "apiVersion": 1,
+    "entry": "backend/index.mjs"
+  },
+  "repository": "https://github.com/BytePioneer-AI/codexhost-ext-prompt-vault",
+  "screenshots": [
+    "assets/prompt-vault-workspace.png"
+  ]
+}
