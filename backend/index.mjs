@@ -84,21 +84,20 @@ function normalizeTags(raw) {
   return result;
 }
 
-function serializePrompt({ title, tags, updatedAt, body }) {
+function serializePrompt({ title, tags, pinned, updatedAt, body }) {
   const safeTitle = JSON.stringify(String(title ?? "").trim());
   const safeTags = JSON.stringify(normalizeTags(tags));
   const safeUpdatedAt = JSON.stringify(String(updatedAt));
   const normalizedBody = String(body ?? "").replace(/\r\n/gu, "\n").trimEnd();
-  return [
+  const headerLines = [
     "---",
     `title: ${safeTitle}`,
     `tags: ${safeTags}`,
+    ...(pinned ? ["pinned: true"] : []),
     `updatedAt: ${safeUpdatedAt}`,
     "---",
-    "",
-    normalizedBody,
-    "",
-  ].join("\n");
+  ];
+  return [...headerLines, "", normalizedBody, ""].join("\n");
 }
 
 function unquoteYamlString(raw) {
@@ -122,6 +121,7 @@ function parseFrontmatter(content, fallbackTitle, fallbackUpdatedAt) {
   const normalized = content.replace(/\r\n/gu, "\n");
   let title = fallbackTitle;
   let tags = [];
+  let pinned = false;
   let updatedAt = fallbackUpdatedAt;
   let body = normalized;
 
@@ -149,6 +149,8 @@ function parseFrontmatter(content, fallbackTitle, fallbackUpdatedAt) {
         if (key === "title") {
           const parsed = unquoteYamlString(rawVal);
           if (parsed) title = parsed;
+        } else if (key === "pinned") {
+          pinned = rawVal.toLowerCase() === "true";
         } else if (key === "updatedat" || key === "updated_at") {
           const parsed = unquoteYamlString(rawVal);
           if (parsed) updatedAt = parsed;
@@ -178,6 +180,7 @@ function parseFrontmatter(content, fallbackTitle, fallbackUpdatedAt) {
   return {
     title: title || fallbackTitle,
     tags: normalizeTags(tags),
+    pinned,
     updatedAt: updatedAt || fallbackUpdatedAt,
     body: body.trimEnd(),
   };
@@ -261,6 +264,7 @@ export async function activate(ctx) {
           filePath,
           title: parsed.title,
           tags: parsed.tags,
+          pinned: parsed.pinned,
           updatedAt: parsed.updatedAt,
           excerpt: makeExcerpt(parsed.body),
           body: parsed.body,
@@ -270,6 +274,7 @@ export async function activate(ctx) {
       }
     }
     items.sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
       if (a.updatedAt !== b.updatedAt) return a.updatedAt < b.updatedAt ? 1 : -1;
       return a.title.localeCompare(b.title);
     });
@@ -343,9 +348,10 @@ export async function activate(ctx) {
         : await allocateUniqueSlug(vaultDir, title);
     const body = typeof params.body === "string" ? params.body : "";
     const tags = normalizeTags(params.tags);
+    const pinned = Boolean(params.pinned);
     const updatedAt = new Date().toISOString();
 
-    const markdown = serializePrompt({ title, tags, updatedAt, body });
+    const markdown = serializePrompt({ title, tags, pinned, updatedAt, body });
     const { fileName, filePath } = await atomicWriteMarkdown(vaultDir, slug, markdown);
 
     if (typeof params.originalSlug === "string" && params.originalSlug.trim()) {
@@ -362,6 +368,7 @@ export async function activate(ctx) {
       filePath,
       title,
       tags,
+      pinned,
       updatedAt,
       excerpt: makeExcerpt(body),
       body: body.replace(/\r\n/gu, "\n").trimEnd(),

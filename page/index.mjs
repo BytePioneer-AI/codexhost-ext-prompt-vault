@@ -1,8 +1,15 @@
+import {
+  copyTextToClipboard,
+  extractVariables,
+  formatShortDate,
+  shortcutHint,
+} from "../shared/templates.mjs";
+
 const COPY = {
   en: {
-    searchPlaceholder: "Search prompts, tags, or content...",
-    allTags: "All tags",
-    newPrompt: "New Prompt",
+    searchPlaceholder: "Search prompts...",
+    allTags: "All",
+    newPrompt: "New",
     settings: "Preferences",
     vaultDirLabel: "Storage Folder (optional)",
     vaultDirPlaceholder: "Leave empty to use default local folder",
@@ -11,37 +18,34 @@ const COPY = {
     defaultTagPlaceholder: "e.g. writing",
     saveSettings: "Save",
     settingsSaved: "Preferences saved",
-    titleLabel: "Title",
-    titlePlaceholder: "Give this prompt a short name",
-    tagsLabel: "Tags",
-    tagsPlaceholder: "Separate with commas, e.g. writing, review",
-    bodyLabel: "Prompt Content",
-    bodyPlaceholder: "Write a reusable prompt template here so you can copy it anytime...",
+    titlePlaceholder: "Untitled prompt",
+    tagsPlaceholder: "Add tags (comma separated)",
+    bodyPlaceholder: "Write your reusable prompt here...\n\nTip: Use {{variable}} placeholders to fill values on the fly when inserting in chat.",
     copy: "Copy",
     copied: "Copied to clipboard",
-    copyFailed: "Could not copy to clipboard",
-    save: "Save",
-    saving: "Saving...",
-    saved: "Saved",
-    titleRequired: "Please enter a title first",
+    copyFailed: "Could not copy",
+    pin: "Pin",
+    pinned: "Pinned",
     delete: "Delete",
-    confirmDelete: "Click again to delete",
-    deleted: "Prompt deleted",
+    confirmDelete: "Confirm delete",
+    deleted: "Deleted",
+    saving: "Saving...",
+    savedAt: "Saved",
+    newDraft: "Start typing a title to auto-save",
+    unsaved: "Unsaved changes",
     emptyTitle: "No prompts yet",
-    emptySub: "Save your go-to prompts here so you can find and copy them with one click.",
+    emptySub: "Save reusable prompts here, then press {key} in any chat to insert them directly.",
     emptyFilterTitle: "No matching prompts",
-    emptyFilterSub: "Try a different keyword or switch back to all tags.",
-    newDraft: "New prompt · Not saved yet",
-    unsavedChanges: "Unsaved changes",
-    lastSaved: "Last saved",
-    countUnit: "prompts",
-    errorPrefix: "Something went wrong:",
-    noExcerpt: "No content yet",
+    emptyFilterSub: "Try another keyword or clear the tag filter.",
+    shortcutBanner: "Tip: Press {key} or click the floating button on any chat page to search & insert directly.",
+    varHint: "Template variables: {vars}",
+    noExcerpt: "Empty prompt",
+    errorPrefix: "Error:",
   },
   "zh-CN": {
-    searchPlaceholder: "搜索提示词标题、标签或内容...",
-    allTags: "全部标签",
-    newPrompt: "新建提示词",
+    searchPlaceholder: "搜索提示词...",
+    allTags: "全部",
+    newPrompt: "新建",
     settings: "偏好设置",
     vaultDirLabel: "保存位置（可选）",
     vaultDirPlaceholder: "留空则自动保存在本机默认位置",
@@ -50,32 +54,29 @@ const COPY = {
     defaultTagPlaceholder: "例如：常用",
     saveSettings: "保存设置",
     settingsSaved: "设置已保存",
-    titleLabel: "标题",
-    titlePlaceholder: "给这条提示词起个名字，例如：周报润色助手",
-    tagsLabel: "标签",
-    tagsPlaceholder: "多个标签用逗号隔开，例如：写作, 工作",
-    bodyLabel: "提示词内容",
-    bodyPlaceholder: "在这里写下常用的提问模板，之后随时搜索、一键复制使用...",
-    copy: "一键复制",
+    titlePlaceholder: "输入提示词标题",
+    tagsPlaceholder: "添加标签，用逗号分隔（选填）",
+    bodyPlaceholder: "在这里写下常用的提问模板...\n\n小技巧：用 {{变量名}} 占位（如 {{风格}}、{{内容}}），在聊天页呼出时会自动弹出填空框。",
+    copy: "复制",
     copied: "已复制到剪贴板",
-    copyFailed: "复制失败，请手动选中内容复制",
-    save: "保存",
-    saving: "保存中...",
-    saved: "已保存",
-    titleRequired: "请先输入标题",
+    copyFailed: "复制失败",
+    pin: "置顶",
+    pinned: "已置顶",
     delete: "删除",
-    confirmDelete: "再次点击确认删除",
+    confirmDelete: "再次点击删除",
     deleted: "已删除",
+    saving: "保存中...",
+    savedAt: "已自动保存",
+    newDraft: "输入标题后将自动保存",
+    unsaved: "待保存...",
     emptyTitle: "还没有提示词",
-    emptySub: "把常用的提问模板记在这里，桌面端与网页端随时一键复制复用。",
+    emptySub: "记下常用的提问模板，聊天时按 {key} 即可原地搜索并直接插入输入框。",
     emptyFilterTitle: "没有找到匹配的提示词",
-    emptyFilterSub: "试试换个关键词，或者切回「全部标签」。",
-    newDraft: "新提示词 · 尚未保存",
-    unsavedChanges: "有未保存的修改",
-    lastSaved: "上次保存",
-    countUnit: "条提示词",
-    errorPrefix: "操作失败：",
+    emptyFilterSub: "试试换个关键词，或者点「全部」查看所有提示词。",
+    shortcutBanner: "快捷用法：在聊天页按 {key} 或点击右下角悬浮按钮，不用切页即可直接插入输入框。",
+    varHint: "包含可填空变量：{vars}",
     noExcerpt: "暂无内容",
+    errorPrefix: "操作失败：",
   },
 };
 
@@ -90,44 +91,6 @@ function el(doc, tag, className, text) {
   return node;
 }
 
-function formatDate(iso) {
-  if (!iso) return "";
-  try {
-    return new Date(iso).toLocaleString(undefined, {
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return String(iso).slice(0, 16);
-  }
-}
-
-async function copyTextToClipboard(text, doc) {
-  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(text);
-      return true;
-    } catch {
-      // Fallback below.
-    }
-  }
-  try {
-    const area = doc.createElement("textarea");
-    area.value = text;
-    area.style.position = "fixed";
-    area.style.opacity = "0";
-    doc.body.append(area);
-    area.select();
-    const ok = doc.execCommand("copy");
-    area.remove();
-    return ok;
-  } catch {
-    return false;
-  }
-}
-
 export async function mount(root, api) {
   const doc = root.ownerDocument;
   const cleanups = [];
@@ -138,294 +101,281 @@ export async function mount(root, api) {
   let settings = {};
   let info = null;
   let items = [];
-  let totalCount = 0;
   let allTags = [];
   let query = "";
   let selectedTag = "";
   let selectedSlug = null;
   let isDraft = true;
+  let pinned = false;
   let dirty = false;
   let saving = false;
   let confirmDelete = false;
   let settingsOpen = false;
-  let toastText = "";
-  let toastTone = "info";
+  let draftUpdatedAt = "";
+  let autoSaveTimer = null;
   let toastTimer = null;
 
-  let draftTitle = "";
-  let draftTags = "";
-  let draftBody = "";
-  let draftUpdatedAt = "";
-
   const container = el(doc, "div", "pv-root");
-  container.dataset.pvHost = api.hostTarget;
   container.dataset.scheme = colorScheme;
   root.replaceChildren(container);
 
-  function setToast(text, tone = "info") {
-    toastText = text;
-    toastTone = tone;
-    if (toastTimer) clearTimeout(toastTimer);
-    renderToast();
-    if (text) {
-      toastTimer = setTimeout(() => {
-        toastText = "";
-        renderToast();
-      }, 2800);
-    }
-  }
-
-  const topbar = el(doc, "div", "pv-topbar");
-  const searchWrap = el(doc, "div", "pv-search-wrap");
-  const searchInput = el(doc, "input", "pv-input pv-search");
-  searchInput.type = "search";
-  searchInput.setAttribute("data-pv-search", "true");
-
-  const tagSelect = el(doc, "select", "pv-select");
-  tagSelect.setAttribute("data-pv-tag-filter", "true");
-
-  const topActions = el(doc, "div", "pv-top-actions");
-  const newBtn = el(doc, "button", "pv-btn pv-btn-primary");
-  newBtn.type = "button";
-  newBtn.setAttribute("data-pv-new", "true");
-
-  const settingsBtn = el(doc, "button", "pv-btn pv-btn-ghost");
-  settingsBtn.type = "button";
-  settingsBtn.setAttribute("data-pv-settings-toggle", "true");
-
-  searchWrap.append(searchInput, tagSelect);
-  topActions.append(newBtn, settingsBtn);
-  topbar.append(searchWrap, topActions);
+  const toastEl = el(doc, "div", "pv-toast");
+  toastEl.setAttribute("role", "status");
+  toastEl.hidden = true;
 
   const settingsPanel = el(doc, "form", "pv-settings-panel");
-  settingsPanel.setAttribute("data-pv-settings-panel", "true");
   settingsPanel.hidden = true;
-
   const settingsRow = el(doc, "div", "pv-settings-row");
 
-  const vaultDirField = el(doc, "label", "pv-field");
-  const vaultDirLabelEl = el(doc, "span", "pv-field-label");
-  const vaultDirInput = el(doc, "input", "pv-input");
+  const vaultDirField = el(doc, "label", "pv-setting-field");
+  const vaultDirLabel = el(doc, "span", "pv-setting-label");
+  const vaultDirInput = el(doc, "input", "pv-setting-input");
   vaultDirInput.type = "text";
-  vaultDirInput.setAttribute("data-pv-setting-dir", "true");
-  vaultDirField.append(vaultDirLabelEl, vaultDirInput);
+  vaultDirField.append(vaultDirLabel, vaultDirInput);
 
-  const defaultTagField = el(doc, "label", "pv-field pv-field-narrow");
-  const defaultTagLabelEl = el(doc, "span", "pv-field-label");
-  const defaultTagInput = el(doc, "input", "pv-input");
+  const defaultTagField = el(doc, "label", "pv-setting-field pv-setting-narrow");
+  const defaultTagLabel = el(doc, "span", "pv-setting-label");
+  const defaultTagInput = el(doc, "input", "pv-setting-input");
   defaultTagInput.type = "text";
-  defaultTagInput.setAttribute("data-pv-setting-tag", "true");
-  defaultTagField.append(defaultTagLabelEl, defaultTagInput);
+  defaultTagField.append(defaultTagLabel, defaultTagInput);
 
-  const saveSettingsBtn = el(doc, "button", "pv-btn pv-btn-primary pv-settings-save");
+  const saveSettingsBtn = el(doc, "button", "pv-pill-btn pv-pill-primary");
   saveSettingsBtn.type = "submit";
-  saveSettingsBtn.setAttribute("data-pv-save-settings", "true");
-
   settingsRow.append(vaultDirField, defaultTagField, saveSettingsBtn);
 
   const currentFolderNote = el(doc, "p", "pv-settings-note");
   currentFolderNote.hidden = true;
   settingsPanel.append(settingsRow, currentFolderNote);
 
-  const toastEl = el(doc, "div", "pv-toast");
-  toastEl.setAttribute("role", "status");
-  toastEl.hidden = true;
+  const split = el(doc, "div", "pv-split");
 
-  const workspace = el(doc, "div", "pv-workspace");
+  // Left Sidebar
+  const sidebar = el(doc, "aside", "pv-sidebar");
+  const sideTop = el(doc, "div", "pv-side-top");
+  const searchInput = el(doc, "input", "pv-search");
+  searchInput.type = "search";
+  const newBtn = el(doc, "button", "pv-pill-btn pv-pill-primary");
+  newBtn.type = "button";
+  sideTop.append(searchInput, newBtn);
 
-  const listPane = el(doc, "aside", "pv-list-pane");
-  const listHeader = el(doc, "div", "pv-list-header");
-  const listCount = el(doc, "span", "pv-list-count");
-  listHeader.append(listCount);
-  const listContainer = el(doc, "div", "pv-list");
-  listContainer.setAttribute("data-pv-list", "true");
-  listPane.append(listHeader, listContainer);
+  const tagBar = el(doc, "div", "pv-tag-bar");
+  tagBar.hidden = true;
 
-  const editorPane = el(doc, "section", "pv-editor-pane");
-  editorPane.setAttribute("data-pv-editor", "true");
+  const listEl = el(doc, "div", "pv-list");
+  sidebar.append(sideTop, tagBar, listEl);
 
-  const metaGrid = el(doc, "div", "pv-meta-grid");
-  const titleField = el(doc, "label", "pv-field");
-  const titleLabelEl = el(doc, "span", "pv-field-label");
-  const titleInput = el(doc, "input", "pv-input pv-title-input");
-  titleInput.type = "text";
-  titleInput.setAttribute("data-pv-title", "true");
-  titleField.append(titleLabelEl, titleInput);
+  // Right Canvas
+  const canvas = el(doc, "section", "pv-canvas");
 
-  const tagsField = el(doc, "label", "pv-field");
-  const tagsLabelEl = el(doc, "span", "pv-field-label");
-  const tagsInput = el(doc, "input", "pv-input");
-  tagsInput.type = "text";
-  tagsInput.setAttribute("data-pv-tags-input", "true");
-  tagsField.append(tagsLabelEl, tagsInput);
+  const canvasToolbar = el(doc, "div", "pv-canvas-toolbar");
+  const statusEl = el(doc, "span", "pv-status");
+  const toolbarActions = el(doc, "div", "pv-toolbar-actions");
 
-  metaGrid.append(titleField, tagsField);
-
-  const bodyField = el(doc, "label", "pv-field pv-body-field");
-  const bodyLabelEl = el(doc, "span", "pv-field-label");
-  const bodyTextarea = el(doc, "textarea", "pv-textarea");
-  bodyTextarea.rows = 12;
-  bodyTextarea.setAttribute("data-pv-body", "true");
-  bodyField.append(bodyLabelEl, bodyTextarea);
-
-  const editorFooter = el(doc, "div", "pv-editor-footer");
-  const metaStatusEl = el(doc, "span", "pv-meta-status");
-
-  const actionsRow = el(doc, "div", "pv-actions");
-  const copyBtn = el(doc, "button", "pv-btn pv-btn-ghost");
+  const pinBtn = el(doc, "button", "pv-ghost-btn");
+  pinBtn.type = "button";
+  const copyBtn = el(doc, "button", "pv-ghost-btn");
   copyBtn.type = "button";
-  copyBtn.setAttribute("data-pv-copy", "true");
-
-  const deleteBtn = el(doc, "button", "pv-btn pv-btn-danger");
+  const settingsBtn = el(doc, "button", "pv-ghost-btn");
+  settingsBtn.type = "button";
+  const deleteBtn = el(doc, "button", "pv-ghost-btn pv-ghost-danger");
   deleteBtn.type = "button";
-  deleteBtn.setAttribute("data-pv-delete", "true");
+  toolbarActions.append(pinBtn, copyBtn, settingsBtn, deleteBtn);
+  canvasToolbar.append(statusEl, toolbarActions);
 
-  const saveBtn = el(doc, "button", "pv-btn pv-btn-primary");
-  saveBtn.type = "button";
-  saveBtn.setAttribute("data-pv-save", "true");
+  const titleInput = el(doc, "input", "pv-title");
+  titleInput.type = "text";
 
-  actionsRow.append(copyBtn, deleteBtn, saveBtn);
-  editorFooter.append(metaStatusEl, actionsRow);
+  const tagsInput = el(doc, "input", "pv-tags");
+  tagsInput.type = "text";
 
-  editorPane.append(metaGrid, bodyField, editorFooter);
-  workspace.append(listPane, editorPane);
+  const varPreviewEl = el(doc, "div", "pv-var-preview");
+  varPreviewEl.hidden = true;
 
-  container.append(topbar, settingsPanel, toastEl, workspace);
+  const bodyTextarea = el(doc, "textarea", "pv-body");
 
-  function renderToast() {
-    if (!toastText) {
+  const tipFooter = el(doc, "div", "pv-tip-footer");
+
+  canvas.append(canvasToolbar, titleInput, tagsInput, varPreviewEl, bodyTextarea, tipFooter);
+  split.append(sidebar, canvas);
+  container.append(settingsPanel, toastEl, split);
+
+  function setToast(text, tone = "info") {
+    if (toastTimer) clearTimeout(toastTimer);
+    if (!text) {
       toastEl.hidden = true;
       toastEl.textContent = "";
       return;
     }
     toastEl.hidden = false;
-    toastEl.dataset.tone = toastTone;
-    toastEl.textContent = toastText;
+    toastEl.dataset.tone = tone;
+    toastEl.textContent = text;
+    toastTimer = setTimeout(() => {
+      toastEl.hidden = true;
+      toastEl.textContent = "";
+    }, 2400);
   }
 
-  function renderEditorStatus() {
+  function renderVarsHint() {
     const t = getCopy(locale);
-    if (isDraft) {
-      metaStatusEl.textContent = t.newDraft;
-      metaStatusEl.dataset.dirty = dirty ? "true" : "false";
-    } else if (dirty) {
-      metaStatusEl.textContent = t.unsavedChanges;
-      metaStatusEl.dataset.dirty = "true";
-    } else if (draftUpdatedAt) {
-      metaStatusEl.textContent = `${t.lastSaved} · ${formatDate(draftUpdatedAt)}`;
-      metaStatusEl.dataset.dirty = "false";
-    } else {
-      metaStatusEl.textContent = "";
-      metaStatusEl.dataset.dirty = "false";
+    const vars = extractVariables(bodyTextarea.value);
+    if (vars.length === 0) {
+      varPreviewEl.hidden = true;
+      varPreviewEl.textContent = "";
+      return;
     }
-    saveBtn.disabled = saving;
-    saveBtn.textContent = saving ? t.saving : t.save;
+    varPreviewEl.hidden = false;
+    varPreviewEl.textContent = t.varHint.replace("{vars}", vars.map((v) => `{{${v}}}`).join(" · "));
+  }
+
+  function renderStatus() {
+    const t = getCopy(locale);
+    if (saving) {
+      statusEl.textContent = t.saving;
+      statusEl.dataset.state = "saving";
+    } else if (isDraft) {
+      statusEl.textContent = titleInput.value.trim() ? t.unsaved : t.newDraft;
+      statusEl.dataset.state = "draft";
+    } else if (dirty) {
+      statusEl.textContent = t.unsaved;
+      statusEl.dataset.state = "dirty";
+    } else if (draftUpdatedAt) {
+      statusEl.textContent = `${t.savedAt} · ${formatShortDate(draftUpdatedAt)}`;
+      statusEl.dataset.state = "saved";
+    } else {
+      statusEl.textContent = "";
+      statusEl.dataset.state = "idle";
+    }
+    pinBtn.textContent = pinned ? t.pinned : t.pin;
+    pinBtn.dataset.active = pinned ? "true" : "false";
     deleteBtn.hidden = isDraft || !selectedSlug;
     deleteBtn.textContent = confirmDelete ? t.confirmDelete : t.delete;
   }
 
-  function loadSelectionIntoEditor(item) {
+  function loadItem(item) {
+    if (autoSaveTimer) {
+      clearTimeout(autoSaveTimer);
+      autoSaveTimer = null;
+    }
     confirmDelete = false;
     dirty = false;
     if (!item) {
       isDraft = true;
       selectedSlug = null;
-      draftTitle = "";
-      const fallbackTag =
+      pinned = false;
+      titleInput.value = "";
+      tagsInput.value =
         typeof settings.defaultTag === "string" && settings.defaultTag.trim()
           ? settings.defaultTag.trim()
           : info?.defaultTag || "";
-      draftTags = fallbackTag;
-      draftBody = "";
+      bodyTextarea.value = "";
       draftUpdatedAt = "";
     } else {
       isDraft = false;
       selectedSlug = item.slug;
-      draftTitle = item.title;
-      draftTags = item.tags.join(", ");
-      draftBody = item.body;
+      pinned = Boolean(item.pinned);
+      titleInput.value = item.title;
+      tagsInput.value = item.tags.join(", ");
+      bodyTextarea.value = item.body;
       draftUpdatedAt = item.updatedAt || "";
     }
-    titleInput.value = draftTitle;
-    tagsInput.value = draftTags;
-    bodyTextarea.value = draftBody;
-    renderEditorStatus();
+    renderVarsHint();
+    renderStatus();
     renderList();
   }
 
-  function renderSettingsNote() {
+  function renderTagBar() {
     const t = getCopy(locale);
-    if (info?.vaultDir) {
-      currentFolderNote.hidden = false;
-      currentFolderNote.textContent = `${t.currentFolderPrefix} ${info.vaultDir}`;
-    } else {
-      currentFolderNote.hidden = true;
-      currentFolderNote.textContent = "";
+    tagBar.replaceChildren();
+    if (allTags.length === 0 && !selectedTag) {
+      tagBar.hidden = true;
+      return;
     }
-  }
+    tagBar.hidden = false;
 
-  function renderTagOptions() {
-    const t = getCopy(locale);
-    const current = selectedTag;
-    tagSelect.replaceChildren();
-    const allOpt = el(doc, "option", "", t.allTags);
-    allOpt.value = "";
-    tagSelect.append(allOpt);
+    const addChip = (label, value) => {
+      const chip = el(
+        doc,
+        "button",
+        `pv-tag-filter${selectedTag === value ? " pv-tag-filter-active" : ""}`,
+        label,
+      );
+      chip.type = "button";
+      chip.addEventListener("click", () => {
+        selectedTag = value;
+        void refreshData();
+      });
+      tagBar.append(chip);
+    };
+
+    addChip(t.allTags, "");
     for (const tag of allTags) {
-      const opt = el(doc, "option", "", `#${tag}`);
-      opt.value = tag.toLowerCase();
-      tagSelect.append(opt);
+      addChip(`#${tag}`, tag.toLowerCase());
     }
-    tagSelect.hidden = allTags.length === 0 && !current;
-    tagSelect.value = allTags.some((tag) => tag.toLowerCase() === current) ? current : "";
   }
 
   function renderList() {
     const t = getCopy(locale);
-    listCount.textContent = `${items.length} ${t.countUnit}`;
-    listContainer.replaceChildren();
+    listEl.replaceChildren();
 
     if (items.length === 0) {
       const isFiltered = Boolean(query.trim() || selectedTag);
       const empty = el(doc, "div", "pv-empty");
       empty.append(
         el(doc, "p", "pv-empty-title", isFiltered ? t.emptyFilterTitle : t.emptyTitle),
-        el(doc, "p", "pv-empty-sub", isFiltered ? t.emptyFilterSub : t.emptySub),
+        el(
+          doc,
+          "p",
+          "pv-empty-sub",
+          (isFiltered ? t.emptyFilterSub : t.emptySub).replace("{key}", shortcutHint()),
+        ),
       );
-      listContainer.append(empty);
+      listEl.append(empty);
       return;
     }
 
     for (const item of items) {
-      const btn = el(
+      const row = el(
         doc,
-        "button",
+        "div",
         `pv-item${!isDraft && selectedSlug === item.slug ? " pv-item-active" : ""}`,
       );
-      btn.type = "button";
-      btn.dataset.pvItem = item.slug;
+      row.setAttribute("role", "button");
+      row.tabIndex = 0;
 
       const head = el(doc, "div", "pv-item-head");
-      head.append(
-        el(doc, "span", "pv-item-title", item.title),
-        el(doc, "span", "pv-item-time", formatDate(item.updatedAt)),
-      );
+      const titleWrap = el(doc, "div", "pv-item-title-wrap");
+      if (item.pinned) {
+        titleWrap.append(el(doc, "span", "pv-pin-dot"));
+      }
+      titleWrap.append(el(doc, "span", "pv-item-title", item.title));
 
-      const excerpt = el(doc, "p", "pv-item-excerpt", item.excerpt || t.noExcerpt);
-      btn.append(head, excerpt);
+      const quickCopy = el(doc, "button", "pv-item-copy", t.copy);
+      quickCopy.type = "button";
+      quickCopy.addEventListener("click", async (event) => {
+        event.stopPropagation();
+        const ok = await copyTextToClipboard(item.body, doc);
+        setToast(ok ? t.copied : t.copyFailed, ok ? "success" : "danger");
+      });
+
+      head.append(titleWrap, quickCopy);
+      row.append(head, el(doc, "p", "pv-item-excerpt", item.excerpt || t.noExcerpt));
 
       if (item.tags.length > 0) {
         const tagRow = el(doc, "div", "pv-item-tags");
-        for (const tag of item.tags.slice(0, 4)) {
+        for (const tag of item.tags.slice(0, 3)) {
           tagRow.append(el(doc, "span", "pv-tag-chip", `#${tag}`));
         }
-        btn.append(tagRow);
+        row.append(tagRow);
       }
 
-      btn.addEventListener("click", () => {
-        loadSelectionIntoEditor(item);
+      row.addEventListener("click", () => loadItem(item));
+      row.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          loadItem(item);
+        }
       });
-      listContainer.append(btn);
+      listEl.append(row);
     }
   }
 
@@ -434,30 +384,70 @@ export async function mount(root, api) {
     searchInput.placeholder = t.searchPlaceholder;
     newBtn.textContent = `+ ${t.newPrompt}`;
     settingsBtn.textContent = t.settings;
-    vaultDirLabelEl.textContent = t.vaultDirLabel;
+    vaultDirLabel.textContent = t.vaultDirLabel;
     vaultDirInput.placeholder = t.vaultDirPlaceholder;
-    defaultTagLabelEl.textContent = t.defaultTagLabel;
+    defaultTagLabel.textContent = t.defaultTagLabel;
     defaultTagInput.placeholder = t.defaultTagPlaceholder;
     saveSettingsBtn.textContent = t.saveSettings;
-    titleLabelEl.textContent = t.titleLabel;
     titleInput.placeholder = t.titlePlaceholder;
-    tagsLabelEl.textContent = t.tagsLabel;
     tagsInput.placeholder = t.tagsPlaceholder;
-    bodyLabelEl.textContent = t.bodyLabel;
     bodyTextarea.placeholder = t.bodyPlaceholder;
     copyBtn.textContent = t.copy;
-    renderEditorStatus();
-    renderSettingsNote();
-    renderTagOptions();
+    tipFooter.textContent = t.shortcutBanner.replace("{key}", shortcutHint());
+    if (info?.vaultDir) {
+      currentFolderNote.hidden = false;
+      currentFolderNote.textContent = `${t.currentFolderPrefix} ${info.vaultDir}`;
+    } else {
+      currentFolderNote.hidden = true;
+    }
+    renderVarsHint();
+    renderStatus();
+    renderTagBar();
     renderList();
   }
 
-  function syncSettingsInputs() {
-    vaultDirInput.value = typeof settings.vaultDir === "string" ? settings.vaultDir : "";
-    defaultTagInput.value = typeof settings.defaultTag === "string" ? settings.defaultTag : "";
+  async function saveCurrent(silent = true) {
+    const title = titleInput.value.trim();
+    if (!title || saving || disposed || api.signal.aborted) return;
+    saving = true;
+    renderStatus();
+    const payload = {
+      title,
+      tags: tagsInput.value,
+      body: bodyTextarea.value,
+      pinned,
+      ...(!isDraft && selectedSlug ? { slug: selectedSlug, originalSlug: selectedSlug } : {}),
+    };
+    try {
+      const saved = await api.backend.invoke("prompts/save", payload);
+      if (disposed || api.signal.aborted) return;
+      isDraft = false;
+      dirty = false;
+      selectedSlug = saved.slug;
+      draftUpdatedAt = saved.updatedAt || "";
+      if (!silent) setToast(getCopy(locale).savedAt, "success");
+      await refreshData(saved.slug, true);
+    } catch (error) {
+      const t = getCopy(locale);
+      setToast(`${t.errorPrefix} ${error instanceof Error ? error.message : String(error)}`, "danger");
+    } finally {
+      saving = false;
+      if (!disposed) renderStatus();
+    }
   }
 
-  async function refreshData(preferSlug = null) {
+  function scheduleAutoSave() {
+    dirty = true;
+    renderStatus();
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
+    if (!titleInput.value.trim()) return;
+    autoSaveTimer = setTimeout(() => {
+      autoSaveTimer = null;
+      void saveCurrent(true);
+    }, 650);
+  }
+
+  async function refreshData(preferSlug = null, preserveEditor = false) {
     if (disposed || api.signal.aborted) return;
     try {
       const [nextInfo, listResult] = await Promise.all([
@@ -467,27 +457,21 @@ export async function mount(root, api) {
       if (disposed || api.signal.aborted) return;
       info = nextInfo;
       items = Array.isArray(listResult?.items) ? listResult.items : [];
-      totalCount = typeof listResult?.totalCount === "number" ? listResult.totalCount : items.length;
       allTags = Array.isArray(listResult?.tags) ? listResult.tags : [];
 
-      const targetSlug = preferSlug ?? selectedSlug;
-      if (targetSlug) {
-        const match = items.find((it) => it.slug === targetSlug);
-        if (match) {
-          loadSelectionIntoEditor(match);
-        } else if (!isDraft) {
-          loadSelectionIntoEditor(items[0] ?? null);
+      if (!preserveEditor) {
+        const targetSlug = preferSlug ?? selectedSlug;
+        if (targetSlug) {
+          const match = items.find((it) => it.slug === targetSlug);
+          if (match) loadItem(match);
+          else if (!isDraft) loadItem(items[0] ?? null);
+        } else if (items.length > 0 && !dirty) {
+          loadItem(items[0]);
+        } else if (items.length === 0 && !dirty) {
+          loadItem(null);
         }
-      } else if (items.length > 0 && !dirty) {
-        loadSelectionIntoEditor(items[0]);
-      } else if (totalCount === 0 && !dirty) {
-        loadSelectionIntoEditor(null);
-      } else {
-        renderLabels();
       }
-      renderSettingsNote();
-      renderTagOptions();
-      renderList();
+      renderLabels();
     } catch (error) {
       if (disposed || api.signal.aborted) return;
       const t = getCopy(locale);
@@ -496,32 +480,39 @@ export async function mount(root, api) {
   }
 
   let searchDebounce = null;
-  const onSearchInput = () => {
+  const onSearch = () => {
     query = searchInput.value;
     if (searchDebounce) clearTimeout(searchDebounce);
-    searchDebounce = setTimeout(() => {
-      void refreshData();
-    }, 120);
+    searchDebounce = setTimeout(() => void refreshData(null, true), 120);
   };
-  searchInput.addEventListener("input", onSearchInput);
+  searchInput.addEventListener("input", onSearch);
   cleanups.push(() => {
-    searchInput.removeEventListener("input", onSearchInput);
+    searchInput.removeEventListener("input", onSearch);
     if (searchDebounce) clearTimeout(searchDebounce);
   });
 
-  const onTagChange = () => {
-    selectedTag = tagSelect.value;
-    void refreshData();
-  };
-  tagSelect.addEventListener("change", onTagChange);
-  cleanups.push(() => tagSelect.removeEventListener("change", onTagChange));
-
-  const onNewClick = () => {
-    loadSelectionIntoEditor(null);
+  const onNew = () => {
+    loadItem(null);
     titleInput.focus();
   };
-  newBtn.addEventListener("click", onNewClick);
-  cleanups.push(() => newBtn.removeEventListener("click", onNewClick));
+  newBtn.addEventListener("click", onNew);
+  cleanups.push(() => newBtn.removeEventListener("click", onNew));
+
+  const onPin = () => {
+    pinned = !pinned;
+    renderStatus();
+    if (titleInput.value.trim()) void saveCurrent(true);
+  };
+  pinBtn.addEventListener("click", onPin);
+  cleanups.push(() => pinBtn.removeEventListener("click", onPin));
+
+  const onCopy = async () => {
+    const t = getCopy(locale);
+    const ok = await copyTextToClipboard(bodyTextarea.value, doc);
+    setToast(ok ? t.copied : t.copyFailed, ok ? "success" : "danger");
+  };
+  copyBtn.addEventListener("click", onCopy);
+  cleanups.push(() => copyBtn.removeEventListener("click", onCopy));
 
   const onSettingsToggle = () => {
     settingsOpen = !settingsOpen;
@@ -535,13 +526,11 @@ export async function mount(root, api) {
     event.preventDefault();
     const t = getCopy(locale);
     try {
-      const next = {
+      settings = await api.storage.set({
         ...settings,
         vaultDir: vaultDirInput.value.trim(),
         defaultTag: defaultTagInput.value.trim(),
-      };
-      settings = await api.storage.set(next);
-      syncSettingsInputs();
+      });
       setToast(t.settingsSaved, "success");
       await refreshData();
     } catch (error) {
@@ -551,97 +540,16 @@ export async function mount(root, api) {
   settingsPanel.addEventListener("submit", onSettingsSubmit);
   cleanups.push(() => settingsPanel.removeEventListener("submit", onSettingsSubmit));
 
-  const markDirty = () => {
-    if (!dirty) {
-      dirty = true;
-      renderEditorStatus();
-    }
-  };
-  const onTitleInput = () => {
-    draftTitle = titleInput.value;
-    markDirty();
-  };
-  const onTagsInput = () => {
-    draftTags = tagsInput.value;
-    markDirty();
-  };
-  const onBodyInput = () => {
-    draftBody = bodyTextarea.value;
-    markDirty();
-  };
-  titleInput.addEventListener("input", onTitleInput);
-  tagsInput.addEventListener("input", onTagsInput);
-  bodyTextarea.addEventListener("input", onBodyInput);
-  cleanups.push(() => {
-    titleInput.removeEventListener("input", onTitleInput);
-    tagsInput.removeEventListener("input", onTagsInput);
-    bodyTextarea.removeEventListener("input", onBodyInput);
-  });
-
-  const onSaveClick = async () => {
-    if (saving) return;
-    const t = getCopy(locale);
-    const title = titleInput.value.trim();
-    if (!title) {
-      setToast(t.titleRequired, "danger");
-      titleInput.focus();
-      return;
-    }
-    saving = true;
-    renderEditorStatus();
-    const payload = {
-      title,
-      tags: tagsInput.value,
-      body: bodyTextarea.value,
-      ...(!isDraft && selectedSlug ? { slug: selectedSlug, originalSlug: selectedSlug } : {}),
-    };
-    try {
-      const saved = await api.backend.invoke("prompts/save", payload);
-      if (disposed || api.signal.aborted) return;
-      isDraft = false;
-      dirty = false;
-      selectedSlug = saved.slug;
-      draftUpdatedAt = saved.updatedAt || "";
-      setToast(t.saved, "success");
-      await refreshData(saved.slug);
-    } catch (error) {
-      setToast(`${t.errorPrefix} ${error instanceof Error ? error.message : String(error)}`, "danger");
-    } finally {
-      saving = false;
-      if (!disposed) renderEditorStatus();
-    }
-  };
-  saveBtn.addEventListener("click", onSaveClick);
-  cleanups.push(() => saveBtn.removeEventListener("click", onSaveClick));
-
-  const onKeyDown = (event) => {
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
-      event.preventDefault();
-      void onSaveClick();
-    }
-  };
-  editorPane.addEventListener("keydown", onKeyDown);
-  cleanups.push(() => editorPane.removeEventListener("keydown", onKeyDown));
-
-  const onCopyClick = async () => {
-    const t = getCopy(locale);
-    const ok = await copyTextToClipboard(bodyTextarea.value, doc);
-    setToast(ok ? t.copied : t.copyFailed, ok ? "success" : "danger");
-  };
-  copyBtn.addEventListener("click", onCopyClick);
-  cleanups.push(() => copyBtn.removeEventListener("click", onCopyClick));
-
-  const onDeleteClick = async () => {
+  const onDelete = async () => {
     if (isDraft || !selectedSlug) return;
     const t = getCopy(locale);
     if (!confirmDelete) {
       confirmDelete = true;
-      renderEditorStatus();
+      renderStatus();
       return;
     }
     try {
-      const target = selectedSlug;
-      await api.backend.invoke("prompts/delete", { slug: target });
+      await api.backend.invoke("prompts/delete", { slug: selectedSlug });
       if (disposed || api.signal.aborted) return;
       selectedSlug = null;
       dirty = false;
@@ -652,8 +560,34 @@ export async function mount(root, api) {
       setToast(`${t.errorPrefix} ${error instanceof Error ? error.message : String(error)}`, "danger");
     }
   };
-  deleteBtn.addEventListener("click", onDeleteClick);
-  cleanups.push(() => deleteBtn.removeEventListener("click", onDeleteClick));
+  deleteBtn.addEventListener("click", onDelete);
+  cleanups.push(() => deleteBtn.removeEventListener("click", onDelete));
+
+  const onEditorInput = () => {
+    renderVarsHint();
+    scheduleAutoSave();
+  };
+  titleInput.addEventListener("input", onEditorInput);
+  tagsInput.addEventListener("input", onEditorInput);
+  bodyTextarea.addEventListener("input", onEditorInput);
+  cleanups.push(() => {
+    titleInput.removeEventListener("input", onEditorInput);
+    tagsInput.removeEventListener("input", onEditorInput);
+    bodyTextarea.removeEventListener("input", onEditorInput);
+  });
+
+  const onKeyDown = (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+      event.preventDefault();
+      if (autoSaveTimer) {
+        clearTimeout(autoSaveTimer);
+        autoSaveTimer = null;
+      }
+      void saveCurrent(false);
+    }
+  };
+  canvas.addEventListener("keydown", onKeyDown);
+  cleanups.push(() => canvas.removeEventListener("keydown", onKeyDown));
 
   cleanups.push(
     api.onLocaleChange((nextLocale) => {
@@ -670,13 +604,15 @@ export async function mount(root, api) {
   cleanups.push(
     api.storage.onChange((nextValues) => {
       settings = nextValues && typeof nextValues === "object" ? nextValues : {};
-      syncSettingsInputs();
+      vaultDirInput.value = typeof settings.vaultDir === "string" ? settings.vaultDir : "";
+      defaultTagInput.value = typeof settings.defaultTag === "string" ? settings.defaultTag : "";
       void refreshData();
     }),
   );
 
   const onAbort = () => {
     disposed = true;
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
     if (toastTimer) clearTimeout(toastTimer);
   };
   api.signal.addEventListener("abort", onAbort, { once: true });
@@ -687,7 +623,8 @@ export async function mount(root, api) {
     const loaded = await api.storage.get();
     if (!disposed && !api.signal.aborted && loaded && typeof loaded === "object") {
       settings = loaded;
-      syncSettingsInputs();
+      vaultDirInput.value = typeof settings.vaultDir === "string" ? settings.vaultDir : "";
+      defaultTagInput.value = typeof settings.defaultTag === "string" ? settings.defaultTag : "";
     }
   } catch {
     // Keep defaults.
@@ -696,6 +633,7 @@ export async function mount(root, api) {
 
   return () => {
     disposed = true;
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
     if (toastTimer) clearTimeout(toastTimer);
     for (const fn of cleanups.splice(0)) {
       try {
