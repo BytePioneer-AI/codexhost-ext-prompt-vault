@@ -5,7 +5,7 @@
     "en": "Prompt Vault",
     "zh-CN": "本地提示词库"
   },
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": {
     "en": "A local prompt library for Codex Desktop and CH Web. Search, insert, and save prompts in a compact picker beside a draggable button (⌥P / Alt+P).",
     "zh-CN": "Codex Desktop 与 CH Web 的本机提示词库。拖动悬浮按钮，按 ⌥P / Alt+P 在旁边打开小窗，原地搜索、插入或保存提示词。"
@@ -76,5 +76,6 @@
   "repository": "https://github.com/BytePioneer-AI/codexhost-ext-prompt-vault",
   "screenshots": [
     "assets/prompt-vault-workspace.png"
-  ]
+  ],
+  "icon": "assets/icon.png"
 }
