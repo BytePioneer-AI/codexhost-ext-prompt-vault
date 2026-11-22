@@ -4,20 +4,13 @@ import {
   formatShortDate,
   shortcutHint,
 } from "../shared/templates.mjs";
+import { recordRecent } from "../shared/history.mjs";
 
 const COPY = {
   en: {
     searchPlaceholder: "Search prompts...",
     allTags: "All",
     newPrompt: "New",
-    settings: "Preferences",
-    vaultDirLabel: "Storage Folder (optional)",
-    vaultDirPlaceholder: "Leave empty to use default local folder",
-    currentFolderPrefix: "Currently saved in:",
-    defaultTagLabel: "Default Tag (optional)",
-    defaultTagPlaceholder: "e.g. writing",
-    saveSettings: "Save",
-    settingsSaved: "Preferences saved",
     titlePlaceholder: "Untitled prompt",
     tagsPlaceholder: "Add tags (comma separated)",
     bodyPlaceholder: "Write your reusable prompt here...\n\nTip: Use {{variable}} placeholders to fill values on the fly when inserting in chat.",
@@ -46,14 +39,6 @@ const COPY = {
     searchPlaceholder: "搜索提示词...",
     allTags: "全部",
     newPrompt: "新建",
-    settings: "偏好设置",
-    vaultDirLabel: "保存位置（可选）",
-    vaultDirPlaceholder: "留空则自动保存在本机默认位置",
-    currentFolderPrefix: "当前保存位置：",
-    defaultTagLabel: "新建默认标签（可选）",
-    defaultTagPlaceholder: "例如：常用",
-    saveSettings: "保存设置",
-    settingsSaved: "设置已保存",
     titlePlaceholder: "输入提示词标题",
     tagsPlaceholder: "添加标签，用逗号分隔（选填）",
     bodyPlaceholder: "在这里写下常用的提问模板...\n\n小技巧：用 {{变量名}} 占位（如 {{风格}}、{{内容}}），在聊天页呼出时会自动弹出填空框。",
@@ -73,7 +58,7 @@ const COPY = {
     emptySub: "记下常用的提问模板，聊天时按 {key} 即可原地搜索并直接插入输入框。",
     emptyFilterTitle: "没有找到匹配的提示词",
     emptyFilterSub: "试试换个关键词，或者点「全部」查看所有提示词。",
-    shortcutBanner: "快捷用法：在聊天页按 {key} 或点击右下角悬浮按钮，不用切页即可直接插入输入框。",
+    shortcutBanner: "快捷用法：在聊天页按 {key} 或点击悬浮按钮，不用切页即可直接插入输入框。",
     varHint: "包含可填空变量：{vars}",
     noExcerpt: "暂无内容",
     errorPrefix: "操作失败：",
@@ -98,8 +83,7 @@ export async function mount(root, api) {
 
   let locale = api.locale;
   let colorScheme = api.colorScheme;
-  let settings = {};
-  let info = null;
+  let defaultTag = "";
   let items = [];
   let allTags = [];
   let query = "";
@@ -110,7 +94,6 @@ export async function mount(root, api) {
   let dirty = false;
   let saving = false;
   let confirmDelete = false;
-  let settingsOpen = false;
   let draftUpdatedAt = "";
   let autoSaveTimer = null;
   let toastTimer = null;
@@ -122,30 +105,6 @@ export async function mount(root, api) {
   const toastEl = el(doc, "div", "pv-toast");
   toastEl.setAttribute("role", "status");
   toastEl.hidden = true;
-
-  const settingsPanel = el(doc, "form", "pv-settings-panel");
-  settingsPanel.hidden = true;
-  const settingsRow = el(doc, "div", "pv-settings-row");
-
-  const vaultDirField = el(doc, "label", "pv-setting-field");
-  const vaultDirLabel = el(doc, "span", "pv-setting-label");
-  const vaultDirInput = el(doc, "input", "pv-setting-input");
-  vaultDirInput.type = "text";
-  vaultDirField.append(vaultDirLabel, vaultDirInput);
-
-  const defaultTagField = el(doc, "label", "pv-setting-field pv-setting-narrow");
-  const defaultTagLabel = el(doc, "span", "pv-setting-label");
-  const defaultTagInput = el(doc, "input", "pv-setting-input");
-  defaultTagInput.type = "text";
-  defaultTagField.append(defaultTagLabel, defaultTagInput);
-
-  const saveSettingsBtn = el(doc, "button", "pv-pill-btn pv-pill-primary");
-  saveSettingsBtn.type = "submit";
-  settingsRow.append(vaultDirField, defaultTagField, saveSettingsBtn);
-
-  const currentFolderNote = el(doc, "p", "pv-settings-note");
-  currentFolderNote.hidden = true;
-  settingsPanel.append(settingsRow, currentFolderNote);
 
   const split = el(doc, "div", "pv-split");
 
@@ -175,11 +134,9 @@ export async function mount(root, api) {
   pinBtn.type = "button";
   const copyBtn = el(doc, "button", "pv-ghost-btn");
   copyBtn.type = "button";
-  const settingsBtn = el(doc, "button", "pv-ghost-btn");
-  settingsBtn.type = "button";
   const deleteBtn = el(doc, "button", "pv-ghost-btn pv-ghost-danger");
   deleteBtn.type = "button";
-  toolbarActions.append(pinBtn, copyBtn, settingsBtn, deleteBtn);
+  toolbarActions.append(pinBtn, copyBtn, deleteBtn);
   canvasToolbar.append(statusEl, toolbarActions);
 
   const titleInput = el(doc, "input", "pv-title");
@@ -197,7 +154,7 @@ export async function mount(root, api) {
 
   canvas.append(canvasToolbar, titleInput, tagsInput, varPreviewEl, bodyTextarea, tipFooter);
   split.append(sidebar, canvas);
-  container.append(settingsPanel, toastEl, split);
+  container.append(toastEl, split);
 
   function setToast(text, tone = "info") {
     if (toastTimer) clearTimeout(toastTimer);
@@ -263,10 +220,7 @@ export async function mount(root, api) {
       selectedSlug = null;
       pinned = false;
       titleInput.value = "";
-      tagsInput.value =
-        typeof settings.defaultTag === "string" && settings.defaultTag.trim()
-          ? settings.defaultTag.trim()
-          : info?.defaultTag || "";
+      tagsInput.value = defaultTag;
       bodyTextarea.value = "";
       draftUpdatedAt = "";
     } else {
@@ -354,6 +308,7 @@ export async function mount(root, api) {
       quickCopy.addEventListener("click", async (event) => {
         event.stopPropagation();
         const ok = await copyTextToClipboard(item.body, doc);
+        if (ok) recordRecent(doc.defaultView, item.slug);
         setToast(ok ? t.copied : t.copyFailed, ok ? "success" : "danger");
       });
 
@@ -370,7 +325,7 @@ export async function mount(root, api) {
 
       row.addEventListener("click", () => loadItem(item));
       row.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" || event.key === " ") {
+        if (event.target === row && (event.key === "Enter" || event.key === " ")) {
           event.preventDefault();
           loadItem(item);
         }
@@ -383,23 +338,11 @@ export async function mount(root, api) {
     const t = getCopy(locale);
     searchInput.placeholder = t.searchPlaceholder;
     newBtn.textContent = `+ ${t.newPrompt}`;
-    settingsBtn.textContent = t.settings;
-    vaultDirLabel.textContent = t.vaultDirLabel;
-    vaultDirInput.placeholder = t.vaultDirPlaceholder;
-    defaultTagLabel.textContent = t.defaultTagLabel;
-    defaultTagInput.placeholder = t.defaultTagPlaceholder;
-    saveSettingsBtn.textContent = t.saveSettings;
     titleInput.placeholder = t.titlePlaceholder;
     tagsInput.placeholder = t.tagsPlaceholder;
     bodyTextarea.placeholder = t.bodyPlaceholder;
     copyBtn.textContent = t.copy;
     tipFooter.textContent = t.shortcutBanner.replace("{key}", shortcutHint());
-    if (info?.vaultDir) {
-      currentFolderNote.hidden = false;
-      currentFolderNote.textContent = `${t.currentFolderPrefix} ${info.vaultDir}`;
-    } else {
-      currentFolderNote.hidden = true;
-    }
     renderVarsHint();
     renderStatus();
     renderTagBar();
@@ -450,12 +393,8 @@ export async function mount(root, api) {
   async function refreshData(preferSlug = null, preserveEditor = false) {
     if (disposed || api.signal.aborted) return;
     try {
-      const [nextInfo, listResult] = await Promise.all([
-        api.backend.invoke("vault/info"),
-        api.backend.invoke("prompts/list", { query, tag: selectedTag }),
-      ]);
+      const listResult = await api.backend.invoke("prompts/list", { query, tag: selectedTag });
       if (disposed || api.signal.aborted) return;
-      info = nextInfo;
       items = Array.isArray(listResult?.items) ? listResult.items : [];
       allTags = Array.isArray(listResult?.tags) ? listResult.tags : [];
 
@@ -508,37 +447,13 @@ export async function mount(root, api) {
 
   const onCopy = async () => {
     const t = getCopy(locale);
+    const slug = selectedSlug;
     const ok = await copyTextToClipboard(bodyTextarea.value, doc);
+    if (ok) recordRecent(doc.defaultView, slug);
     setToast(ok ? t.copied : t.copyFailed, ok ? "success" : "danger");
   };
   copyBtn.addEventListener("click", onCopy);
   cleanups.push(() => copyBtn.removeEventListener("click", onCopy));
-
-  const onSettingsToggle = () => {
-    settingsOpen = !settingsOpen;
-    settingsPanel.hidden = !settingsOpen;
-    settingsBtn.dataset.active = settingsOpen ? "true" : "false";
-  };
-  settingsBtn.addEventListener("click", onSettingsToggle);
-  cleanups.push(() => settingsBtn.removeEventListener("click", onSettingsToggle));
-
-  const onSettingsSubmit = async (event) => {
-    event.preventDefault();
-    const t = getCopy(locale);
-    try {
-      settings = await api.storage.set({
-        ...settings,
-        vaultDir: vaultDirInput.value.trim(),
-        defaultTag: defaultTagInput.value.trim(),
-      });
-      setToast(t.settingsSaved, "success");
-      await refreshData();
-    } catch (error) {
-      setToast(`${t.errorPrefix} ${error instanceof Error ? error.message : String(error)}`, "danger");
-    }
-  };
-  settingsPanel.addEventListener("submit", onSettingsSubmit);
-  cleanups.push(() => settingsPanel.removeEventListener("submit", onSettingsSubmit));
 
   const onDelete = async () => {
     if (isDraft || !selectedSlug) return;
@@ -603,10 +518,8 @@ export async function mount(root, api) {
   );
   cleanups.push(
     api.storage.onChange((nextValues) => {
-      settings = nextValues && typeof nextValues === "object" ? nextValues : {};
-      vaultDirInput.value = typeof settings.vaultDir === "string" ? settings.vaultDir : "";
-      defaultTagInput.value = typeof settings.defaultTag === "string" ? settings.defaultTag : "";
-      void refreshData();
+      defaultTag = typeof nextValues?.defaultTag === "string" ? nextValues.defaultTag.trim() : "";
+      void refreshData(null, dirty || saving);
     }),
   );
 
@@ -621,10 +534,8 @@ export async function mount(root, api) {
   renderLabels();
   try {
     const loaded = await api.storage.get();
-    if (!disposed && !api.signal.aborted && loaded && typeof loaded === "object") {
-      settings = loaded;
-      vaultDirInput.value = typeof settings.vaultDir === "string" ? settings.vaultDir : "";
-      defaultTagInput.value = typeof settings.defaultTag === "string" ? settings.defaultTag : "";
+    if (!disposed && !api.signal.aborted && typeof loaded?.defaultTag === "string") {
+      defaultTag = loaded.defaultTag.trim();
     }
   } catch {
     // Keep defaults.

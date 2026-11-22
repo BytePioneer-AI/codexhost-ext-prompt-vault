@@ -15,66 +15,6 @@
   box-sizing: border-box;
 }
 
-.pv-settings-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
-  border-radius: 10px;
-  background: var(--cx-page-surface, #f7f7f8);
-  border: 1px solid var(--cx-page-border, rgba(15, 23, 42, 0.1));
-}
-
-.pv-settings-panel[hidden] {
-  display: none;
-}
-
-.pv-settings-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 10px 12px;
-}
-
-.pv-setting-field {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  flex: 1 1 240px;
-  min-width: 0;
-}
-
-.pv-setting-narrow {
-  flex: 0 1 190px;
-}
-
-.pv-setting-label {
-  font-size: 12px;
-  color: var(--cx-page-text-muted, #6b7280);
-}
-
-.pv-setting-input {
-  font: inherit;
-  font-size: 13px;
-  padding: 7px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--cx-page-border, rgba(15, 23, 42, 0.14));
-  background: var(--cx-page-bg, #ffffff);
-  color: var(--cx-page-text, #111827);
-  outline: none;
-}
-
-.pv-setting-input:focus {
-  border-color: var(--cx-page-accent, #2563eb);
-}
-
-.pv-settings-note {
-  margin: 0;
-  font-size: 11.5px;
-  color: var(--cx-page-text-muted, #6b7280);
-  word-break: break-all;
-}
-
 .pv-toast {
   align-self: flex-end;
   padding: 6px 12px;
