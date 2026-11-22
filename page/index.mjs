@@ -1,67 +1,81 @@
 const COPY = {
   en: {
-    searchPlaceholder: "Search prompts, tags, or body...",
+    searchPlaceholder: "Search prompts, tags, or content...",
     allTags: "All tags",
     newPrompt: "New Prompt",
-    settings: "Vault Settings",
-    backendPid: "Host PID",
-    vaultDirLabel: "Vault Directory (absolute path, empty = default)",
-    defaultTagLabel: "Default Tag",
-    saveSettings: "Save Settings",
-    settingsSaved: "Settings saved",
+    settings: "Preferences",
+    vaultDirLabel: "Storage Folder (optional)",
+    vaultDirPlaceholder: "Leave empty to use default local folder",
+    currentFolderPrefix: "Currently saved in:",
+    defaultTagLabel: "Default Tag (optional)",
+    defaultTagPlaceholder: "e.g. writing",
+    saveSettings: "Save",
+    settingsSaved: "Preferences saved",
     titleLabel: "Title",
-    titlePlaceholder: "e.g. PR Security Review Prompt",
-    slugLabel: "Filename slug (.md)",
-    slugPlaceholder: "auto-generated-from-title",
-    tagsLabel: "Tags (comma-separated)",
-    tagsPlaceholder: "review, engineering",
-    bodyLabel: "Markdown Content",
-    bodyPlaceholder: "Write your reusable Markdown prompt here...",
-    copy: "Copy Prompt",
-    copied: "Copied!",
-    save: "Save .md",
-    saved: "Saved to disk",
+    titlePlaceholder: "Give this prompt a short name",
+    tagsLabel: "Tags",
+    tagsPlaceholder: "Separate with commas, e.g. writing, review",
+    bodyLabel: "Prompt Content",
+    bodyPlaceholder: "Write a reusable prompt template here so you can copy it anytime...",
+    copy: "Copy",
+    copied: "Copied to clipboard",
+    copyFailed: "Could not copy to clipboard",
+    save: "Save",
+    saving: "Saving...",
+    saved: "Saved",
+    titleRequired: "Please enter a title first",
     delete: "Delete",
-    confirmDelete: "Confirm Delete",
+    confirmDelete: "Click again to delete",
     deleted: "Prompt deleted",
-    emptyList: "No prompts match your filter.",
-    createFirst: "Create a new prompt to write a Markdown file to disk.",
-    fileLabel: "File:",
-    newDraft: "Unsaved draft",
+    emptyTitle: "No prompts yet",
+    emptySub: "Save your go-to prompts here so you can find and copy them with one click.",
+    emptyFilterTitle: "No matching prompts",
+    emptyFilterSub: "Try a different keyword or switch back to all tags.",
+    newDraft: "New prompt · Not saved yet",
+    unsavedChanges: "Unsaved changes",
+    lastSaved: "Last saved",
     countUnit: "prompts",
-    errorPrefix: "Error:",
+    errorPrefix: "Something went wrong:",
+    noExcerpt: "No content yet",
   },
   "zh-CN": {
-    searchPlaceholder: "搜索提示词标题、标签或正文...",
+    searchPlaceholder: "搜索提示词标题、标签或内容...",
     allTags: "全部标签",
     newPrompt: "新建提示词",
-    settings: "仓库设置",
-    backendPid: "共享后台 PID",
-    vaultDirLabel: "提示词目录（本机绝对路径，留空使用默认目录）",
-    defaultTagLabel: "默认标签",
+    settings: "偏好设置",
+    vaultDirLabel: "保存位置（可选）",
+    vaultDirPlaceholder: "留空则自动保存在本机默认位置",
+    currentFolderPrefix: "当前保存位置：",
+    defaultTagLabel: "新建默认标签（可选）",
+    defaultTagPlaceholder: "例如：常用",
     saveSettings: "保存设置",
     settingsSaved: "设置已保存",
     titleLabel: "标题",
-    titlePlaceholder: "例如：代码审查与风险排查提示词",
-    slugLabel: "文件名标识（.md）",
-    slugPlaceholder: "留空将按标题自动生成",
-    tagsLabel: "标签（逗号分隔）",
-    tagsPlaceholder: "review, engineering",
-    bodyLabel: "Markdown 正文",
-    bodyPlaceholder: "在此编写可复用的 Markdown 提示词内容...",
+    titlePlaceholder: "给这条提示词起个名字，例如：周报润色助手",
+    tagsLabel: "标签",
+    tagsPlaceholder: "多个标签用逗号隔开，例如：写作, 工作",
+    bodyLabel: "提示词内容",
+    bodyPlaceholder: "在这里写下常用的提问模板，之后随时搜索、一键复制使用...",
     copy: "一键复制",
-    copied: "已复制",
-    save: "保存 .md",
-    saved: "已写入磁盘",
+    copied: "已复制到剪贴板",
+    copyFailed: "复制失败，请手动选中内容复制",
+    save: "保存",
+    saving: "保存中...",
+    saved: "已保存",
+    titleRequired: "请先输入标题",
     delete: "删除",
-    confirmDelete: "确认删除",
-    deleted: "已删除提示词",
-    emptyList: "没有匹配的提示词。",
-    createFirst: "点击「新建提示词」即可向本地目录写入真实 .md 文件。",
-    fileLabel: "文件：",
-    newDraft: "未保存草稿",
+    confirmDelete: "再次点击确认删除",
+    deleted: "已删除",
+    emptyTitle: "还没有提示词",
+    emptySub: "把常用的提问模板记在这里，桌面端与网页端随时一键复制复用。",
+    emptyFilterTitle: "没有找到匹配的提示词",
+    emptyFilterSub: "试试换个关键词，或者切回「全部标签」。",
+    newDraft: "新提示词 · 尚未保存",
+    unsavedChanges: "有未保存的修改",
+    lastSaved: "上次保存",
     countUnit: "条提示词",
-    errorPrefix: "错误：",
+    errorPrefix: "操作失败：",
+    noExcerpt: "暂无内容",
   },
 };
 
@@ -124,11 +138,14 @@ export async function mount(root, api) {
   let settings = {};
   let info = null;
   let items = [];
+  let totalCount = 0;
   let allTags = [];
   let query = "";
   let selectedTag = "";
   let selectedSlug = null;
-  let isDraft = false;
+  let isDraft = true;
+  let dirty = false;
+  let saving = false;
   let confirmDelete = false;
   let settingsOpen = false;
   let toastText = "";
@@ -136,10 +153,9 @@ export async function mount(root, api) {
   let toastTimer = null;
 
   let draftTitle = "";
-  let draftSlug = "";
   let draftTags = "";
   let draftBody = "";
-  let draftFilePath = "";
+  let draftUpdatedAt = "";
 
   const container = el(doc, "div", "pv-root");
   container.dataset.pvHost = api.hostTarget;
@@ -155,7 +171,7 @@ export async function mount(root, api) {
       toastTimer = setTimeout(() => {
         toastText = "";
         renderToast();
-      }, 3200);
+      }, 2800);
     }
   }
 
@@ -168,6 +184,7 @@ export async function mount(root, api) {
   const tagSelect = el(doc, "select", "pv-select");
   tagSelect.setAttribute("data-pv-tag-filter", "true");
 
+  const topActions = el(doc, "div", "pv-top-actions");
   const newBtn = el(doc, "button", "pv-btn pv-btn-primary");
   newBtn.type = "button";
   newBtn.setAttribute("data-pv-new", "true");
@@ -176,22 +193,15 @@ export async function mount(root, api) {
   settingsBtn.type = "button";
   settingsBtn.setAttribute("data-pv-settings-toggle", "true");
 
-  searchWrap.append(searchInput, tagSelect, newBtn, settingsBtn);
-
-  const statusBadge = el(doc, "div", "pv-status-badge");
-  statusBadge.setAttribute("data-pv-status", "true");
-  const statusDot = el(doc, "span", "pv-status-dot");
-  const pidLabel = el(doc, "span", "pv-status-pid");
-  pidLabel.setAttribute("data-pv-pid", "true");
-  const dirLabel = el(doc, "code", "pv-status-dir");
-  dirLabel.setAttribute("data-pv-vault-dir", "true");
-  statusBadge.append(statusDot, pidLabel, dirLabel);
-
-  topbar.append(searchWrap, statusBadge);
+  searchWrap.append(searchInput, tagSelect);
+  topActions.append(newBtn, settingsBtn);
+  topbar.append(searchWrap, topActions);
 
   const settingsPanel = el(doc, "form", "pv-settings-panel");
   settingsPanel.setAttribute("data-pv-settings-panel", "true");
   settingsPanel.hidden = true;
+
+  const settingsRow = el(doc, "div", "pv-settings-row");
 
   const vaultDirField = el(doc, "label", "pv-field");
   const vaultDirLabelEl = el(doc, "span", "pv-field-label");
@@ -211,7 +221,11 @@ export async function mount(root, api) {
   saveSettingsBtn.type = "submit";
   saveSettingsBtn.setAttribute("data-pv-save-settings", "true");
 
-  settingsPanel.append(vaultDirField, defaultTagField, saveSettingsBtn);
+  settingsRow.append(vaultDirField, defaultTagField, saveSettingsBtn);
+
+  const currentFolderNote = el(doc, "p", "pv-settings-note");
+  currentFolderNote.hidden = true;
+  settingsPanel.append(settingsRow, currentFolderNote);
 
   const toastEl = el(doc, "div", "pv-toast");
   toastEl.setAttribute("role", "status");
@@ -233,37 +247,29 @@ export async function mount(root, api) {
   const metaGrid = el(doc, "div", "pv-meta-grid");
   const titleField = el(doc, "label", "pv-field");
   const titleLabelEl = el(doc, "span", "pv-field-label");
-  const titleInput = el(doc, "input", "pv-input");
+  const titleInput = el(doc, "input", "pv-input pv-title-input");
   titleInput.type = "text";
   titleInput.setAttribute("data-pv-title", "true");
   titleField.append(titleLabelEl, titleInput);
 
-  const slugField = el(doc, "label", "pv-field");
-  const slugLabelEl = el(doc, "span", "pv-field-label");
-  const slugInput = el(doc, "input", "pv-input pv-mono");
-  slugInput.type = "text";
-  slugInput.setAttribute("data-pv-slug", "true");
-  slugField.append(slugLabelEl, slugInput);
-
-  const tagsField = el(doc, "label", "pv-field pv-field-full");
+  const tagsField = el(doc, "label", "pv-field");
   const tagsLabelEl = el(doc, "span", "pv-field-label");
   const tagsInput = el(doc, "input", "pv-input");
   tagsInput.type = "text";
   tagsInput.setAttribute("data-pv-tags-input", "true");
   tagsField.append(tagsLabelEl, tagsInput);
 
-  metaGrid.append(titleField, slugField, tagsField);
+  metaGrid.append(titleField, tagsField);
 
   const bodyField = el(doc, "label", "pv-field pv-body-field");
   const bodyLabelEl = el(doc, "span", "pv-field-label");
   const bodyTextarea = el(doc, "textarea", "pv-textarea");
-  bodyTextarea.rows = 11;
+  bodyTextarea.rows = 12;
   bodyTextarea.setAttribute("data-pv-body", "true");
   bodyField.append(bodyLabelEl, bodyTextarea);
 
   const editorFooter = el(doc, "div", "pv-editor-footer");
-  const filePathEl = el(doc, "div", "pv-file-path");
-  filePathEl.setAttribute("data-pv-filepath", "true");
+  const metaStatusEl = el(doc, "span", "pv-meta-status");
 
   const actionsRow = el(doc, "div", "pv-actions");
   const copyBtn = el(doc, "button", "pv-btn pv-btn-ghost");
@@ -279,7 +285,7 @@ export async function mount(root, api) {
   saveBtn.setAttribute("data-pv-save", "true");
 
   actionsRow.append(copyBtn, deleteBtn, saveBtn);
-  editorFooter.append(filePathEl, actionsRow);
+  editorFooter.append(metaStatusEl, actionsRow);
 
   editorPane.append(metaGrid, bodyField, editorFooter);
   workspace.append(listPane, editorPane);
@@ -297,56 +303,64 @@ export async function mount(root, api) {
     toastEl.textContent = toastText;
   }
 
+  function renderEditorStatus() {
+    const t = getCopy(locale);
+    if (isDraft) {
+      metaStatusEl.textContent = t.newDraft;
+      metaStatusEl.dataset.dirty = dirty ? "true" : "false";
+    } else if (dirty) {
+      metaStatusEl.textContent = t.unsavedChanges;
+      metaStatusEl.dataset.dirty = "true";
+    } else if (draftUpdatedAt) {
+      metaStatusEl.textContent = `${t.lastSaved} · ${formatDate(draftUpdatedAt)}`;
+      metaStatusEl.dataset.dirty = "false";
+    } else {
+      metaStatusEl.textContent = "";
+      metaStatusEl.dataset.dirty = "false";
+    }
+    saveBtn.disabled = saving;
+    saveBtn.textContent = saving ? t.saving : t.save;
+    deleteBtn.hidden = isDraft || !selectedSlug;
+    deleteBtn.textContent = confirmDelete ? t.confirmDelete : t.delete;
+  }
+
   function loadSelectionIntoEditor(item) {
     confirmDelete = false;
+    dirty = false;
     if (!item) {
       isDraft = true;
       selectedSlug = null;
       draftTitle = "";
-      draftSlug = "";
-      draftTags =
+      const fallbackTag =
         typeof settings.defaultTag === "string" && settings.defaultTag.trim()
           ? settings.defaultTag.trim()
-          : info?.defaultTag || "general";
+          : info?.defaultTag || "";
+      draftTags = fallbackTag;
       draftBody = "";
-      draftFilePath = "";
+      draftUpdatedAt = "";
     } else {
       isDraft = false;
       selectedSlug = item.slug;
       draftTitle = item.title;
-      draftSlug = item.slug;
       draftTags = item.tags.join(", ");
       draftBody = item.body;
-      draftFilePath = item.filePath;
+      draftUpdatedAt = item.updatedAt || "";
     }
-    syncEditorFields();
-    renderList();
-    renderLabels();
-  }
-
-  function syncEditorFields() {
     titleInput.value = draftTitle;
-    slugInput.value = draftSlug;
     tagsInput.value = draftTags;
     bodyTextarea.value = draftBody;
-    const t = getCopy(locale);
-    filePathEl.textContent = draftFilePath
-      ? `${t.fileLabel} ${draftFilePath}`
-      : t.newDraft;
-    deleteBtn.hidden = isDraft || !selectedSlug;
+    renderEditorStatus();
+    renderList();
   }
 
-  function renderStatus() {
+  function renderSettingsNote() {
     const t = getCopy(locale);
-    if (info) {
-      pidLabel.textContent = `${t.backendPid} #${info.pid}`;
-      pidLabel.dataset.pidValue = String(info.pid);
-      dirLabel.textContent = info.vaultDir;
-      dirLabel.title = info.vaultDir;
-      statusBadge.dataset.ready = "true";
+    if (info?.vaultDir) {
+      currentFolderNote.hidden = false;
+      currentFolderNote.textContent = `${t.currentFolderPrefix} ${info.vaultDir}`;
     } else {
-      pidLabel.textContent = `${t.backendPid} ...`;
-      dirLabel.textContent = "";
+      currentFolderNote.hidden = true;
+      currentFolderNote.textContent = "";
     }
   }
 
@@ -359,10 +373,11 @@ export async function mount(root, api) {
     tagSelect.append(allOpt);
     for (const tag of allTags) {
       const opt = el(doc, "option", "", `#${tag}`);
-      opt.value = tag;
+      opt.value = tag.toLowerCase();
       tagSelect.append(opt);
     }
-    tagSelect.value = allTags.includes(current) ? current : "";
+    tagSelect.hidden = allTags.length === 0 && !current;
+    tagSelect.value = allTags.some((tag) => tag.toLowerCase() === current) ? current : "";
   }
 
   function renderList() {
@@ -371,10 +386,11 @@ export async function mount(root, api) {
     listContainer.replaceChildren();
 
     if (items.length === 0) {
+      const isFiltered = Boolean(query.trim() || selectedTag);
       const empty = el(doc, "div", "pv-empty");
       empty.append(
-        el(doc, "p", "pv-empty-title", t.emptyList),
-        el(doc, "p", "pv-empty-sub", t.createFirst),
+        el(doc, "p", "pv-empty-title", isFiltered ? t.emptyFilterTitle : t.emptyTitle),
+        el(doc, "p", "pv-empty-sub", isFiltered ? t.emptyFilterSub : t.emptySub),
       );
       listContainer.append(empty);
       return;
@@ -395,7 +411,7 @@ export async function mount(root, api) {
         el(doc, "span", "pv-item-time", formatDate(item.updatedAt)),
       );
 
-      const excerpt = el(doc, "p", "pv-item-excerpt", item.excerpt || item.fileName);
+      const excerpt = el(doc, "p", "pv-item-excerpt", item.excerpt || t.noExcerpt);
       btn.append(head, excerpt);
 
       if (item.tags.length > 0) {
@@ -419,31 +435,26 @@ export async function mount(root, api) {
     newBtn.textContent = `+ ${t.newPrompt}`;
     settingsBtn.textContent = t.settings;
     vaultDirLabelEl.textContent = t.vaultDirLabel;
+    vaultDirInput.placeholder = t.vaultDirPlaceholder;
     defaultTagLabelEl.textContent = t.defaultTagLabel;
+    defaultTagInput.placeholder = t.defaultTagPlaceholder;
     saveSettingsBtn.textContent = t.saveSettings;
     titleLabelEl.textContent = t.titleLabel;
     titleInput.placeholder = t.titlePlaceholder;
-    slugLabelEl.textContent = t.slugLabel;
-    slugInput.placeholder = t.slugPlaceholder;
     tagsLabelEl.textContent = t.tagsLabel;
     tagsInput.placeholder = t.tagsPlaceholder;
     bodyLabelEl.textContent = t.bodyLabel;
     bodyTextarea.placeholder = t.bodyPlaceholder;
     copyBtn.textContent = t.copy;
-    saveBtn.textContent = t.save;
-    deleteBtn.textContent = confirmDelete ? t.confirmDelete : t.delete;
-    filePathEl.textContent = draftFilePath
-      ? `${t.fileLabel} ${draftFilePath}`
-      : t.newDraft;
-    renderStatus();
+    renderEditorStatus();
+    renderSettingsNote();
     renderTagOptions();
     renderList();
   }
 
   function syncSettingsInputs() {
     vaultDirInput.value = typeof settings.vaultDir === "string" ? settings.vaultDir : "";
-    defaultTagInput.value =
-      typeof settings.defaultTag === "string" ? settings.defaultTag : "general";
+    defaultTagInput.value = typeof settings.defaultTag === "string" ? settings.defaultTag : "";
   }
 
   async function refreshData(preferSlug = null) {
@@ -456,6 +467,7 @@ export async function mount(root, api) {
       if (disposed || api.signal.aborted) return;
       info = nextInfo;
       items = Array.isArray(listResult?.items) ? listResult.items : [];
+      totalCount = typeof listResult?.totalCount === "number" ? listResult.totalCount : items.length;
       allTags = Array.isArray(listResult?.tags) ? listResult.tags : [];
 
       const targetSlug = preferSlug ?? selectedSlug;
@@ -466,12 +478,14 @@ export async function mount(root, api) {
         } else if (!isDraft) {
           loadSelectionIntoEditor(items[0] ?? null);
         }
-      } else if (!isDraft && items.length > 0) {
+      } else if (items.length > 0 && !dirty) {
         loadSelectionIntoEditor(items[0]);
+      } else if (totalCount === 0 && !dirty) {
+        loadSelectionIntoEditor(null);
       } else {
         renderLabels();
       }
-      renderStatus();
+      renderSettingsNote();
       renderTagOptions();
       renderList();
     } catch (error) {
@@ -512,6 +526,7 @@ export async function mount(root, api) {
   const onSettingsToggle = () => {
     settingsOpen = !settingsOpen;
     settingsPanel.hidden = !settingsOpen;
+    settingsBtn.dataset.active = settingsOpen ? "true" : "false";
   };
   settingsBtn.addEventListener("click", onSettingsToggle);
   cleanups.push(() => settingsBtn.removeEventListener("click", onSettingsToggle));
@@ -523,7 +538,7 @@ export async function mount(root, api) {
       const next = {
         ...settings,
         vaultDir: vaultDirInput.value.trim(),
-        defaultTag: defaultTagInput.value.trim() || "general",
+        defaultTag: defaultTagInput.value.trim(),
       };
       settings = await api.storage.set(next);
       syncSettingsInputs();
@@ -536,57 +551,82 @@ export async function mount(root, api) {
   settingsPanel.addEventListener("submit", onSettingsSubmit);
   cleanups.push(() => settingsPanel.removeEventListener("submit", onSettingsSubmit));
 
+  const markDirty = () => {
+    if (!dirty) {
+      dirty = true;
+      renderEditorStatus();
+    }
+  };
   const onTitleInput = () => {
     draftTitle = titleInput.value;
-  };
-  const onSlugInput = () => {
-    draftSlug = slugInput.value;
+    markDirty();
   };
   const onTagsInput = () => {
     draftTags = tagsInput.value;
+    markDirty();
   };
   const onBodyInput = () => {
     draftBody = bodyTextarea.value;
+    markDirty();
   };
   titleInput.addEventListener("input", onTitleInput);
-  slugInput.addEventListener("input", onSlugInput);
   tagsInput.addEventListener("input", onTagsInput);
   bodyTextarea.addEventListener("input", onBodyInput);
   cleanups.push(() => {
     titleInput.removeEventListener("input", onTitleInput);
-    slugInput.removeEventListener("input", onSlugInput);
     tagsInput.removeEventListener("input", onTagsInput);
     bodyTextarea.removeEventListener("input", onBodyInput);
   });
 
   const onSaveClick = async () => {
+    if (saving) return;
     const t = getCopy(locale);
+    const title = titleInput.value.trim();
+    if (!title) {
+      setToast(t.titleRequired, "danger");
+      titleInput.focus();
+      return;
+    }
+    saving = true;
+    renderEditorStatus();
     const payload = {
-      title: titleInput.value.trim(),
+      title,
       tags: tagsInput.value,
       body: bodyTextarea.value,
-      ...(slugInput.value.trim() ? { slug: slugInput.value.trim() } : {}),
-      ...(!isDraft && selectedSlug ? { originalSlug: selectedSlug } : {}),
+      ...(!isDraft && selectedSlug ? { slug: selectedSlug, originalSlug: selectedSlug } : {}),
     };
     try {
       const saved = await api.backend.invoke("prompts/save", payload);
       if (disposed || api.signal.aborted) return;
       isDraft = false;
+      dirty = false;
       selectedSlug = saved.slug;
-      draftFilePath = saved.filePath;
-      setToast(`${t.saved}: ${saved.fileName}`, "success");
+      draftUpdatedAt = saved.updatedAt || "";
+      setToast(t.saved, "success");
       await refreshData(saved.slug);
     } catch (error) {
       setToast(`${t.errorPrefix} ${error instanceof Error ? error.message : String(error)}`, "danger");
+    } finally {
+      saving = false;
+      if (!disposed) renderEditorStatus();
     }
   };
   saveBtn.addEventListener("click", onSaveClick);
   cleanups.push(() => saveBtn.removeEventListener("click", onSaveClick));
 
+  const onKeyDown = (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+      event.preventDefault();
+      void onSaveClick();
+    }
+  };
+  editorPane.addEventListener("keydown", onKeyDown);
+  cleanups.push(() => editorPane.removeEventListener("keydown", onKeyDown));
+
   const onCopyClick = async () => {
     const t = getCopy(locale);
     const ok = await copyTextToClipboard(bodyTextarea.value, doc);
-    setToast(ok ? t.copied : `${t.errorPrefix} clipboard unavailable`, ok ? "success" : "danger");
+    setToast(ok ? t.copied : t.copyFailed, ok ? "success" : "danger");
   };
   copyBtn.addEventListener("click", onCopyClick);
   cleanups.push(() => copyBtn.removeEventListener("click", onCopyClick));
@@ -596,7 +636,7 @@ export async function mount(root, api) {
     const t = getCopy(locale);
     if (!confirmDelete) {
       confirmDelete = true;
-      deleteBtn.textContent = t.confirmDelete;
+      renderEditorStatus();
       return;
     }
     try {
@@ -604,6 +644,7 @@ export async function mount(root, api) {
       await api.backend.invoke("prompts/delete", { slug: target });
       if (disposed || api.signal.aborted) return;
       selectedSlug = null;
+      dirty = false;
       confirmDelete = false;
       setToast(t.deleted, "success");
       await refreshData();

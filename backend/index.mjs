@@ -1,40 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,79}$/u;
 const MAX_PROMPT_BYTES = 512 * 1024;
-
-const SEED_PROMPTS = [
-  {
-    slug: "code-review-checklist",
-    title: "Code Review Checklist",
-    tags: ["review", "engineering"],
-    body: [
-      "Review the diff focusing on correctness, edge cases, and maintainability:",
-      "",
-      "1. **Correctness & Invariants**: Check null/undefined handling, boundary values, race conditions, and error recovery.",
-      "2. **Security & Trust Boundaries**: Validate untrusted inputs, prevent path traversal, and avoid leaking secrets.",
-      "3. **API & Compatibility**: Verify public contracts, backwards compatibility, and clear error semantics.",
-      "4. **Tests**: Confirm new behavior and regressions are covered by focused, observable assertions.",
-      "",
-      "Group findings by severity (Blocker / Major / Minor) and suggest concise fixes.",
-    ].join("\n"),
-  },
-  {
-    slug: "conventional-commit-guide",
-    title: "Conventional Commit Helper",
-    tags: ["git", "workflow"],
-    body: [
-      "Draft a concise Conventional Commit message for the staged changes:",
-      "",
-      "- Format: `<type>(<optional-scope>): <imperative summary>` (<= 72 chars)",
-      "- Allowed types: `feat`, `fix`, `refactor`, `perf`, `docs`, `test`, `chore`, `build`, `ci`",
-      "- Body: Explain *why* the change is needed and any notable trade-offs or verification commands run.",
-      "- Avoid repeating file lists that are already obvious from `git diff --stat`.",
-    ].join("\n"),
-  },
-];
 
 function isValidAbsoluteDir(raw) {
   if (typeof raw !== "string") return false;
@@ -47,7 +16,7 @@ function isValidAbsoluteDir(raw) {
 
 function assertSafeSlug(raw) {
   if (typeof raw !== "string") {
-    throw new Error("Prompt slug must be a string");
+    throw new Error("Invalid prompt identifier");
   }
   const slug = raw.trim().toLowerCase();
   if (
@@ -58,9 +27,7 @@ function assertSafeSlug(raw) {
     slug.includes("\0") ||
     !SLUG_RE.test(slug)
   ) {
-    throw new Error(
-      "Invalid prompt slug: use 1-80 lowercase letters, digits, hyphens, or underscores (no path separators)",
-    );
+    throw new Error("Invalid prompt identifier");
   }
   return slug;
 }
@@ -72,25 +39,45 @@ function slugifyTitle(title) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/gu, "-")
     .replace(/^-+|-+$/gu, "")
-    .slice(0, 64);
-  return ascii && SLUG_RE.test(ascii) ? ascii : `prompt-${Date.now().toString(36)}`;
+    .slice(0, 56);
+  if (ascii && SLUG_RE.test(ascii)) return ascii;
+  return `prompt-${Date.now().toString(36)}-${randomUUID().slice(0, 4)}`;
+}
+
+async function fileExists(targetPath) {
+  try {
+    await access(targetPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function allocateUniqueSlug(vaultDir, title) {
+  const base = slugifyTitle(title);
+  if (!(await fileExists(resolvePromptPath(vaultDir, base).filePath))) {
+    return base;
+  }
+  const suffixed = `${base.slice(0, 68)}-${randomUUID().slice(0, 6)}`;
+  return assertSafeSlug(suffixed);
 }
 
 function normalizeTags(raw) {
   const list = Array.isArray(raw)
     ? raw
     : typeof raw === "string"
-      ? raw.split(",")
+      ? raw.split(/[,，]/u)
       : [];
   const seen = new Set();
   const result = [];
   for (const entry of list) {
     const clean = String(entry ?? "")
       .trim()
-      .toLowerCase()
+      .replace(/^#+/u, "")
       .replace(/[\r\n]/gu, "");
-    if (clean && !seen.has(clean)) {
-      seen.add(clean);
+    const key = clean.toLowerCase();
+    if (clean && !seen.has(key)) {
+      seen.add(key);
       result.push(clean.slice(0, 40));
     }
   }
@@ -177,11 +164,11 @@ function parseFrontmatter(content, fallbackTitle, fallbackUpdatedAt) {
             } catch {
               tags = rawVal
                 .slice(1, -1)
-                .split(",")
+                .split(/[,，]/u)
                 .map((part) => unquoteYamlString(part));
             }
           } else {
-            tags = rawVal.split(",").map((part) => unquoteYamlString(part));
+            tags = rawVal.split(/[,，]/u).map((part) => unquoteYamlString(part));
           }
         }
       }
@@ -234,7 +221,6 @@ async function atomicWriteMarkdown(vaultDir, slug, content) {
 
 export async function activate(ctx) {
   const startedAt = new Date().toISOString();
-  const seededDirs = new Set();
   let disposed = false;
 
   async function resolveVaultConfig() {
@@ -250,32 +236,10 @@ export async function activate(ctx) {
     const vaultDir = isCustom ? path.resolve(rawDir) : path.join(ctx.dataDir, "prompts");
     const defaultTag =
       typeof settings.defaultTag === "string" && settings.defaultTag.trim()
-        ? settings.defaultTag.trim().toLowerCase().slice(0, 40)
-        : "general";
+        ? settings.defaultTag.trim().slice(0, 40)
+        : "";
     await mkdir(vaultDir, { recursive: true });
-    if (!seededDirs.has(vaultDir)) {
-      seededDirs.add(vaultDir);
-      await ensureSeeded(vaultDir);
-    }
     return { vaultDir, isCustom, defaultTag };
-  }
-
-  async function ensureSeeded(vaultDir) {
-    const entries = await readdir(vaultDir, { withFileTypes: true });
-    const hasMarkdown = entries.some(
-      (entry) => entry.isFile() && entry.name.endsWith(".md") && !entry.name.startsWith("."),
-    );
-    if (hasMarkdown) return;
-    const now = new Date().toISOString();
-    for (const seed of SEED_PROMPTS) {
-      const content = serializePrompt({
-        title: seed.title,
-        tags: seed.tags,
-        updatedAt: now,
-        body: seed.body,
-      });
-      await atomicWriteMarkdown(vaultDir, seed.slug, content);
-    }
   }
 
   async function readAllPrompts(vaultDir) {
@@ -319,7 +283,6 @@ export async function activate(ctx) {
     const { vaultDir, isCustom, defaultTag } = await resolveVaultConfig();
     const items = await readAllPrompts(vaultDir);
     return {
-      pid: process.pid,
       startedAt,
       vaultDir,
       isCustom,
@@ -332,9 +295,12 @@ export async function activate(ctx) {
     if (disposed) throw new Error("Backend is disposed");
     const { vaultDir } = await resolveVaultConfig();
     const allItems = await readAllPrompts(vaultDir);
-    const tagSet = new Set();
+    const tagMap = new Map();
     for (const item of allItems) {
-      for (const tag of item.tags) tagSet.add(tag);
+      for (const tag of item.tags) {
+        const key = tag.toLowerCase();
+        if (!tagMap.has(key)) tagMap.set(key, tag);
+      }
     }
     const query =
       params && typeof params === "object" && typeof params.query === "string"
@@ -346,20 +312,19 @@ export async function activate(ctx) {
         : "";
 
     const filtered = allItems.filter((item) => {
-      if (tagFilter && !item.tags.includes(tagFilter)) return false;
+      if (tagFilter && !item.tags.some((tag) => tag.toLowerCase() === tagFilter)) return false;
       if (!query) return true;
       return (
         item.title.toLowerCase().includes(query) ||
-        item.slug.toLowerCase().includes(query) ||
         item.body.toLowerCase().includes(query) ||
-        item.tags.some((tag) => tag.includes(query))
+        item.tags.some((tag) => tag.toLowerCase().includes(query))
       );
     });
 
     return {
       vaultDir,
       totalCount: allItems.length,
-      tags: [...tagSet].sort(),
+      tags: [...tagMap.values()].sort((a, b) => a.localeCompare(b)),
       items: filtered,
     };
   });
@@ -370,16 +335,15 @@ export async function activate(ctx) {
       throw new Error("Expected prompt payload object");
     }
     const title = typeof params.title === "string" ? params.title.trim() : "";
-    if (!title) throw new Error("Prompt title is required");
-    const rawSlug =
+    if (!title) throw new Error("Please enter a title");
+    const { vaultDir } = await resolveVaultConfig();
+    const slug =
       typeof params.slug === "string" && params.slug.trim()
-        ? params.slug.trim()
-        : slugifyTitle(title);
-    const slug = assertSafeSlug(rawSlug);
+        ? assertSafeSlug(params.slug)
+        : await allocateUniqueSlug(vaultDir, title);
     const body = typeof params.body === "string" ? params.body : "";
     const tags = normalizeTags(params.tags);
     const updatedAt = new Date().toISOString();
-    const { vaultDir } = await resolveVaultConfig();
 
     const markdown = serializePrompt({ title, tags, updatedAt, body });
     const { fileName, filePath } = await atomicWriteMarkdown(vaultDir, slug, markdown);
@@ -423,6 +387,5 @@ export async function activate(ctx) {
 
   return () => {
     disposed = true;
-    seededDirs.clear();
   };
 }
